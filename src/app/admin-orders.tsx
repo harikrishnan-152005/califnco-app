@@ -2,23 +2,21 @@
 import { router } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
-    collection,
-    doc,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    updateDoc,
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator, Alert, Platform, Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../lib/firebase';
@@ -120,38 +118,57 @@ export default function AdminOrdersScreen() {
   }, []);
 
   async function changeStatus(order: Order, status: string) {
+    console.log('STATUS BUTTON CLICKED:', order.id, status);
+
     if (!authorized || updating) return;
 
-    Alert.alert(
-      'Update order',
-      `Change ${order.id} to ${status}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: async () => {
-            setUpdating(order.id);
+    // Web-compatible confirmation
+    if (Platform.OS === 'web') {
+      if (!window.confirm(`Change order ${order.id} to ${status}?`)) {
+        return;
+      }
+      await performStatusUpdate(order, status);
+      return;
+    }
 
-            try {
-              await updateDoc(doc(db, 'orders', order.id), {
-                status,
-                updatedAt: serverTimestamp(),
-              });
+    Alert.alert('Update order', `Change ${order.id} to ${status}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Confirm',
+        onPress: () => performStatusUpdate(order, status),
+      },
+    ]);
+  }
 
-              Alert.alert('Success', `Order status updated to ${status}.`);
-            } catch (error) {
-              console.error('Status update failed:', error);
-              Alert.alert(
-                'Update failed',
-                'Check your Firestore security rules.'
-              );
-            } finally {
-              setUpdating(null);
-            }
-          },
-        },
-      ]
-    );
+  async function performStatusUpdate(order: Order, status: string) {
+    setUpdating(order.id);
+
+    try {
+      await updateDoc(doc(db, 'orders', order.id), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
+
+      if (Platform.OS === 'web') {
+        window.alert(`Order status updated to ${status}.`);
+      } else {
+        Alert.alert('Success', `Order status updated to ${status}.`);
+      }
+    } catch (error: any) {
+      console.error('Status update failed:', error);
+
+      const message = `${error.code ?? 'unknown'}: ${
+        error.message ?? 'Please try again.'
+      }`;
+
+      if (Platform.OS === 'web') {
+        window.alert(`Update failed: ${message}`);
+      } else {
+        Alert.alert('Update failed', message);
+      }
+    } finally {
+      setUpdating(null);
+    }
   }
 
   if (loading) {
