@@ -3,12 +3,9 @@ import { router } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
-  doc,
   onSnapshot,
   orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
+  query
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
@@ -140,26 +137,44 @@ export default function AdminOrdersScreen() {
     ]);
   }
 
+  
   async function performStatusUpdate(order: Order, status: string) {
     setUpdating(order.id);
 
     try {
-      await updateDoc(doc(db, 'orders', order.id), {
-        status,
-        updatedAt: serverTimestamp(),
+      const user = auth.currentUser;
+      if (!user) throw new Error('Please sign in again.');
+
+      const idToken = await user.getIdToken();
+
+      const response = await fetch('/api/orders/status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ orderId: order.id, status }),
       });
 
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Unable to update order.');
+      }
+
+      const message =
+        result.notificationsSent > 0
+          ? `Order updated to ${status}. Customer notification sent.`
+          : `Order updated to ${status}. No push notification was confirmed.`;
+
       if (Platform.OS === 'web') {
-        window.alert(`Order status updated to ${status}.`);
+        window.alert(message);
       } else {
-        Alert.alert('Success', `Order status updated to ${status}.`);
+        Alert.alert('Success', message);
       }
     } catch (error: any) {
       console.error('Status update failed:', error);
-
-      const message = `${error.code ?? 'unknown'}: ${
-        error.message ?? 'Please try again.'
-      }`;
+      const message = error.message || 'Please try again.';
 
       if (Platform.OS === 'web') {
         window.alert(`Update failed: ${message}`);
@@ -170,6 +185,7 @@ export default function AdminOrdersScreen() {
       setUpdating(null);
     }
   }
+
 
   if (loading) {
     return (

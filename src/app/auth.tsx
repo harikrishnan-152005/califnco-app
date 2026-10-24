@@ -26,6 +26,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../lib/firebase';
+import { registerForPushNotifications } from '../lib/notifications';
 
 type RegistrationType = 'customer' | 'dealer';
 
@@ -45,6 +46,7 @@ export default function AuthScreen() {
   const authInProgress = useRef(false);
 
   async function redirectUser(user: NonNullable<typeof auth.currentUser>) {
+    void registerForPushNotifications(user.uid);
     const token = await user.getIdTokenResult(true);
 
     if (token.claims.admin === true) {
@@ -183,6 +185,8 @@ export default function AuthScreen() {
             : {}),
           createdAt: serverTimestamp(),
         });
+
+        void registerForPushNotifications(credential.user.uid);
 
         if (registrationType === 'dealer') {
           await setDoc(
