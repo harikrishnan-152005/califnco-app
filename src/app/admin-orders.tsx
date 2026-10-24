@@ -259,10 +259,14 @@ export default function AdminOrdersScreen() {
 
                 <View style={styles.statusOptions}>
                   {statuses.map((status) => (
-                    <Pressable
+                    <Pressable 
                       key={status}
                       disabled={updating !== null || currentStatus === status}
-                      onPress={() => changeStatus(order, status)}
+                      onPress={() => {
+                        window.alert(`Button clicked: ${status}`);
+                        console.log('STATUS BUTTON CLICKED:', order.id, status);
+                        changeStatus(order, status);
+                      }}
                       style={[
                         styles.statusButton,
                         currentStatus === status && styles.selectedStatus,
@@ -272,8 +276,7 @@ export default function AdminOrdersScreen() {
                       <Text
                         style={[
                           styles.statusButtonText,
-                          currentStatus === status &&
-                            styles.selectedStatusText,
+                          currentStatus === status && styles.selectedStatusText,
                         ]}
                       >
                         {status}
