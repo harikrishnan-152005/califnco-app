@@ -322,7 +322,11 @@ export default function AdminDealersScreen() {
                       isBusy && styles.disabled,
                     ]}
                     disabled={isBusy}
-                    onPress={() => reviewApplication(application, 'rejected')}
+                    onPress={() => {
+                      window.alert('Reject button clicked');
+                      console.log('REJECT CLICKED:', application.id);
+                      reviewApplication(application, 'rejected');
+                    }}
                   >
                     <Text style={styles.rejectText}>
                       {isProcessing ? 'Saving...' : 'Reject'}
@@ -336,7 +340,11 @@ export default function AdminDealersScreen() {
                       isBusy && styles.disabled,
                     ]}
                     disabled={isBusy}
-                    onPress={() => reviewApplication(application, 'approved')}
+                    onPress={() => {
+                      window.alert('Approve button clicked');
+                      console.log('APPROVE CLICKED:', application.id);
+                      reviewApplication(application, 'approved');
+                    }}
                   >
                     <Text style={styles.approveText}>
                       {isProcessing ? 'Saving...' : 'Approve Dealer'}
