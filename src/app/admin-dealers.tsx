@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -136,7 +137,7 @@ export default function AdminDealersScreen() {
     };
   }, []);
 
-  function reviewApplication(
+  async function reviewApplication(
     application: DealerApplication,
     status: 'approved' | 'rejected'
   ) {
@@ -146,6 +147,16 @@ export default function AdminDealersScreen() {
     const dealerName =
       application.businessName || application.name || 'this dealer';
 
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        `Are you sure you want to ${action} ${dealerName}?`
+      );
+      if (!confirmed) return;
+
+      await performDealerReview(application, status);
+      return;
+    }
+
     Alert.alert(
       `${action.charAt(0).toUpperCase()}${action.slice(1)} application`,
       `Are you sure you want to ${action} ${dealerName}?`,
@@ -154,71 +165,72 @@ export default function AdminDealersScreen() {
         {
           text: 'Confirm',
           style: status === 'rejected' ? 'destructive' : 'default',
-          onPress: async () => {
-            setProcessingId(application.id);
-
-            try {
-              const user = auth.currentUser;
-
-              if (!user) {
-                throw new Error('Your admin session has expired.');
-              }
-
-              // Re-verify the admin claim before making changes.
-              const token = await user.getIdTokenResult(true);
-
-              if (token.claims.admin !== true) {
-                throw new Error('Admin permission is required.');
-              }
-
-              const applicationRef = doc(
-                db,
-                'dealerApplications',
-                application.id
-              );
-              const userRef = doc(db, 'users', application.userId);
-
-              const batch = writeBatch(db);
-
-              // Update the application and access-control profile together.
-              batch.update(applicationRef, {
-                status,
-                reviewedAt: serverTimestamp(),
-                reviewedBy: user.uid,
-              });
-
-              batch.update(userRef, {
-                role: status === 'approved' ? 'dealer' : 'customer',
-                dealerApproved: status === 'approved',
-                updatedAt: serverTimestamp(),
-              });
-
-              await batch.commit();
-
-              Alert.alert(
-                'Success',
-                status === 'approved'
-                  ? 'Dealer approved. Wholesale access is now enabled.'
-                  : 'Dealer application rejected. Wholesale access is disabled.'
-              );
-            } catch (error) {
-              console.error('Dealer review failed:', error);
-
-              Alert.alert(
-                'Update failed',
-                error instanceof Error
-                  ? error.message
-                  : 'Could not update this application. Check Firestore rules.'
-              );
-            } finally {
-              setProcessingId(null);
-            }
-          },
+          onPress: () => performDealerReview(application, status),
         },
       ]
     );
   }
+  
+  async function performDealerReview(
+    application: DealerApplication,
+    status: 'approved' | 'rejected'
+  ) {
+    setProcessingId(application.id);
 
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Your admin session has expired.');
+
+      const token = await user.getIdTokenResult(true);
+      if (token.claims.admin !== true) {
+        throw new Error('Admin permission is required.');
+      }
+
+      const applicationRef = doc(db, 'dealerApplications', application.id);
+      const userRef = doc(db, 'users', application.userId);
+      const batch = writeBatch(db);
+
+      batch.update(applicationRef, {
+        status,
+        reviewedAt: serverTimestamp(),
+        reviewedBy: user.uid,
+      });
+
+      batch.update(userRef, {
+        role: status === 'approved' ? 'dealer' : 'customer',
+        dealerApproved: status === 'approved',
+        updatedAt: serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      const message =
+        status === 'approved'
+          ? 'Dealer approved. Wholesale access is now enabled.'
+          : 'Dealer application rejected. Wholesale access is disabled.';
+
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Success', message);
+      }
+    } catch (error: any) {
+      console.error('Dealer review failed:', error);
+
+      const message = `${error.code ?? 'Error'}: ${
+        error.message ?? 'Could not update the application.'
+      }`;
+
+      if (Platform.OS === 'web') {
+        window.alert(`Update failed: ${message}`);
+      } else {
+        Alert.alert('Update failed', message);
+      }
+    } finally {
+      setProcessingId(null);
+    }
+  }
+  
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
